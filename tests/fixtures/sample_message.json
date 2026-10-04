@@ -1,0 +1,69 @@
+{
+  "id": "18f3a9c0deadbeef",
+  "threadId": "18f3a9c0deadbe00",
+  "labelIds": [
+    "UNREAD",
+    "INBOX"
+  ],
+  "snippet": "Hi Sarah, please find attached the invoice for September.",
+  "payload": {
+    "mimeType": "multipart/mixed",
+    "headers": [
+      {
+        "name": "From",
+        "value": "Acme Billing <billing@acme.example>"
+      },
+      {
+        "name": "To",
+        "value": "sarah@example.com"
+      },
+      {
+        "name": "Cc",
+        "value": "ap@acme.example, ops@acme.example"
+      },
+      {
+        "name": "Subject",
+        "value": "Invoice #4521 - due Oct 15"
+      },
+      {
+        "name": "Date",
+        "value": "Wed, 1 Oct 2026 09:12:00 +0200"
+      }
+    ],
+    "parts": [
+      {
+        "mimeType": "multipart/alternative",
+        "parts": [
+          {
+            "mimeType": "text/plain",
+            "body": {
+              "data": "SGkgU2FyYWgsCgpQbGVhc2UgZmluZCBhdHRhY2hlZCB0aGUgaW52b2ljZSBmb3IgU2VwdGVtYmVyLiBUb3RhbCBpcyBFVVIgMSwyNTAuMDAsIGR1ZSBPY3QgMTUuCgpUaGFua3MsCkFjbWUgQmlsbGluZw"
+            }
+          },
+          {
+            "mimeType": "text/html",
+            "body": {
+              "data": "PGh0bWw-PGJvZHk-PHA-SGkgU2FyYWgsPC9wPjxwPlBsZWFzZSBmaW5kIGF0dGFjaGVkIHRoZSBpbnZvaWNlLjwvcD48L2JvZHk-PC9odG1sPg"
+            }
+          }
+        ]
+      },
+      {
+        "mimeType": "application/pdf",
+        "filename": "invoice-4521.pdf",
+        "body": {
+          "attachmentId": "ANGjdJ8attach001",
+          "size": 48213
+        }
+      },
+      {
+        "mimeType": "text/csv",
+        "filename": "line-items.csv",
+        "body": {
+          "attachmentId": "ANGjdJ8attach002",
+          "size": 310
+        }
+      }
+    ]
+  }
+}
