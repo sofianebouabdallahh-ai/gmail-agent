@@ -1,6 +1,6 @@
 import io
 
-from gmail_agent.agents.attachments import attachment_to_text
+from gmail_agent.attachments import attachment_to_text
 
 
 def test_csv():

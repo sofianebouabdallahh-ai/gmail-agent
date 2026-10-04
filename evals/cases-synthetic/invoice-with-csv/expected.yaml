@@ -1,0 +1,5 @@
+# A routine invoice with its line items attached: keep it filed, never archive it.
+kind: [label]
+labels_include: [Finance]
+must_not: [archive, ignore]
+facts: ["4521", "1,250.00", "October 15"]

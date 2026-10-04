@@ -1,7 +1,7 @@
 [project]
 name = "gmail-agent"
 version = "0.1.0"
-description = "Add your description here"
+description = "Gmail triage harness: extraction and triage agents, skills, policy guardrails, evals"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -17,6 +17,7 @@ dependencies = [
     "pypdf>=6.19.0",
     "python-docx>=1.2.0",
     "python-dotenv>=1.2.4",
+    "pyyaml>=6.0.3",
 ]
 
 [project.scripts]

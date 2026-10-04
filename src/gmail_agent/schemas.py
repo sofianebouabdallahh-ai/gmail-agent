@@ -126,3 +126,17 @@ class NextAction(BaseModel):
     )
     due_by: str | None = Field(default=None, description="ISO date if the action has a deadline.")
     confidence: float = Field(ge=0.0, le=1.0, description="0 to 1 confidence in this action.")
+
+
+# --------------------------------------------------------------------------- #
+# Observability: what one agent run cost
+# --------------------------------------------------------------------------- #
+class RunUsage(BaseModel):
+    agent: str
+    backend: str
+    model: str
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cost_usd: float | None = None  # known on the claude_code backend; None on the api backend
+    duration_ms: int = 0
+    tool_calls: list[str] = Field(default_factory=list, description="Tool calls in order, e.g. load_skill(labeling).")

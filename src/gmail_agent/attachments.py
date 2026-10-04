@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import csv
 import io
+import logging
 
 from gmail_agent.config import settings
+
+# pypdf recovers from many malformed PDFs but logs warnings for each; keep logs readable.
+logging.getLogger("pypdf").setLevel(logging.ERROR)
 
 
 def attachment_to_text(data: bytes, mime_type: str, filename: str,

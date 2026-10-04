@@ -1,0 +1,79 @@
+{
+  "id": "syn-promo-0001",
+  "threadId": "syn-promo-0001",
+  "labelIds": [
+    "UNREAD",
+    "CATEGORY_PROMOTIONS",
+    "INBOX"
+  ],
+  "snippet": "Our biggest sale of the season is here! 30% off everything for 48 hours only.\nShop now at shopmart.e",
+  "payload": {
+    "partId": "",
+    "mimeType": "multipart/mixed",
+    "filename": "",
+    "headers": [
+      {
+        "name": "From",
+        "value": "ShopMart <deals@news.shopmart.example>"
+      },
+      {
+        "name": "To",
+        "value": "owner@example.com"
+      },
+      {
+        "name": "Subject",
+        "value": "48h only: 30% off everything \ud83c\udf89"
+      },
+      {
+        "name": "Date",
+        "value": "Thu, 2 Oct 2026 14:00:00 +0000"
+      }
+    ],
+    "body": {
+      "size": 0
+    },
+    "parts": [
+      {
+        "partId": "0",
+        "mimeType": "multipart/alternative",
+        "filename": "",
+        "headers": [],
+        "body": {
+          "size": 0
+        },
+        "parts": [
+          {
+            "partId": "0.0",
+            "mimeType": "text/plain",
+            "filename": "",
+            "headers": [
+              {
+                "name": "Content-Type",
+                "value": "text/plain; charset=UTF-8"
+              }
+            ],
+            "body": {
+              "size": 149,
+              "data": "T3VyIGJpZ2dlc3Qgc2FsZSBvZiB0aGUgc2Vhc29uIGlzIGhlcmUhIDMwJSBvZmYgZXZlcnl0aGluZyBmb3IgNDggaG91cnMgb25seS4KU2hvcCBub3cgYXQgc2hvcG1hcnQuZXhhbXBsZS4gVW5zdWJzY3JpYmU6IHNob3BtYXJ0LmV4YW1wbGUvdW5zdWJzY3JpYmU"
+            }
+          },
+          {
+            "partId": "0.1",
+            "mimeType": "text/html",
+            "filename": "",
+            "headers": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=UTF-8"
+              }
+            ],
+            "body": {
+              "size": 48,
+              "data": "PGgxPjMwJSBvZmYgZXZlcnl0aGluZzwvaDE-PHA-NDggaG91cnMgb25seS48L3A-"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

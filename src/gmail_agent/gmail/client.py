@@ -8,6 +8,7 @@ from typing import Any
 from bs4 import BeautifulSoup
 from googleapiclient.discovery import Resource
 
+from gmail_agent.config import settings
 from gmail_agent.schemas import Attachment, Email
 
 USER = "me"
@@ -114,7 +115,7 @@ class GmailClient:
             self.service.users()
             .messages()
             .list(userId=USER, q=query, maxResults=max_results)
-            .execute()
+            .execute(num_retries=settings.gmail_retries)
         )
         return [m["id"] for m in resp.get("messages", [])]
 
@@ -123,11 +124,25 @@ class GmailClient:
             self.service.users()
             .messages()
             .get(userId=USER, id=message_id, format="full")
-            .execute()
+            .execute(num_retries=settings.gmail_retries)
         )
 
     def get_email(self, message_id: str) -> Email:
         return parse_message(self.get_raw_message(message_id))
+
+    def search(self, query: str, max_results: int = 5) -> list[Email]:
+        """Full emails matching a Gmail search query, newest first."""
+        return [self.get_email(mid) for mid in self.list_message_ids(query, max_results)]
+
+    def get_thread(self, thread_id: str) -> list[Email]:
+        """Every message of a thread, oldest first."""
+        resp = (
+            self.service.users()
+            .threads()
+            .get(userId=USER, id=thread_id, format="full")
+            .execute(num_retries=settings.gmail_retries)
+        )
+        return [parse_message(m) for m in resp.get("messages", [])]
 
     def download_attachment(self, message_id: str, attachment_id: str) -> bytes:
         resp = (
@@ -135,7 +150,7 @@ class GmailClient:
             .messages()
             .attachments()
             .get(userId=USER, messageId=message_id, id=attachment_id)
-            .execute()
+            .execute(num_retries=settings.gmail_retries)
         )
         return _b64url_decode(resp["data"])
 
@@ -145,7 +160,7 @@ class GmailClient:
             self.service.users()
             .history()
             .list(userId=USER, startHistoryId=start_history_id, historyTypes=["messageAdded"])
-            .execute()
+            .execute(num_retries=settings.gmail_retries)
         )
 
     # -- writing (drafts and labels only; sending is deliberately absent) ---- #
@@ -163,13 +178,13 @@ class GmailClient:
             self.service.users()
             .drafts()
             .create(userId=USER, body={"message": message})
-            .execute()
+            .execute(num_retries=settings.gmail_retries)
         )
         return draft["id"]
 
     def list_labels(self) -> dict[str, str]:
         """Return {label_name: label_id}."""
-        resp = self.service.users().labels().list(userId=USER).execute()
+        resp = self.service.users().labels().list(userId=USER).execute(num_retries=settings.gmail_retries)
         return {l["name"]: l["id"] for l in resp.get("labels", [])}
 
     def ensure_label(self, name: str) -> str:
@@ -181,7 +196,7 @@ class GmailClient:
             .labels()
             .create(userId=USER, body={"name": name, "labelListVisibility": "labelShow",
                                          "messageListVisibility": "show"})
-            .execute()
+            .execute(num_retries=settings.gmail_retries)
         )
         return created["id"]
 
@@ -193,7 +208,7 @@ class GmailClient:
         if remove:
             body["removeLabelIds"] = remove  # system labels like INBOX, UNREAD are already ids
         if body:
-            self.service.users().messages().modify(userId=USER, id=message_id, body=body).execute()
+            self.service.users().messages().modify(userId=USER, id=message_id, body=body).execute(num_retries=settings.gmail_retries)
 
     def archive(self, message_id: str) -> None:
         self.modify_labels(message_id, remove=["INBOX"])

@@ -1,0 +1,4 @@
+# Bulk marketing email: archiving is expected; it must never be answered.
+kind: [archive, ignore]
+must_not: [draft_reply]
+facts: ["30%"]
