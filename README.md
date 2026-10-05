@@ -45,7 +45,68 @@ uv run gmail-agent poll --loop --interval 120       # keep polling (add --dry-ru
 uv run gmail-agent ui                               # http://127.0.0.1:8000, Process buttons + approvals
 uv run gmail-agent eval                             # score the agents on saved emails (offline)
 uv run gmail-agent check --prompts                  # print the exact system prompts
+uv run gmail-agent fetch <message_id>               # print one parsed email, no AI
+uv run gmail-agent dump <message_id> out.json       # save the raw Gmail JSON (test fixture)
 ```
+
+**Finding message ids:** Gmail URLs don't contain the API message id. Open the email in the
+web UI: the id is the `?id=` part of the page address. `poll` also prints the id of every
+email it processes.
+
+## Choosing a backend
+
+Set `LLM_BACKEND` in `.env`:
+
+| | `api` | `claude_code` |
+|---|---|---|
+| Runs through | LangChain `create_agent` + `ChatAnthropic` | Claude Agent SDK (Claude Code) |
+| Billing | API credits for `ANTHROPIC_API_KEY` ([platform.claude.com](https://platform.claude.com) → Billing) | Your Claude subscription (e.g. Max) via the Claude Code login on this machine |
+| Cost reporting | Tokens only | Tokens and USD |
+| Use for | Anything, including running for other people | Personal use only |
+
+Both backends get the same prompts, skills, tools and output schemas, so decisions should
+match. On `claude_code`, Claude Code's own tools, settings and CLAUDE.md files are switched
+off, and `ANTHROPIC_API_KEY` is ignored so it can't take precedence over your login.
+Compare the two with `gmail-agent eval --backend api` and `--backend claude_code`.
+
+## Configuration
+
+All settings come from `.env` (see `.env.example`):
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `LLM_BACKEND` | `api` | `api` or `claude_code` (see above) |
+| `ANTHROPIC_API_KEY` | | Needed only for `api` |
+| `EXTRACT_MODEL` / `EXTRACT_EFFORT` | `claude-sonnet-5-5` / `medium` | Extractor agent |
+| `TRIAGE_MODEL` / `TRIAGE_EFFORT` | `claude-opus-5-5` / `high` | Triage agent; use Sonnet to cut cost |
+| `ANTHROPIC_FALLBACKS` | `1` | `api` backend: route safety-classifier refusals to a fallback model |
+| `DRY_RUN` | `false` | Decide without changing Gmail (same as `--dry-run`) |
+| `MIN_CONFIDENCE` | `0.6` | Below this, any decision goes to you |
+| `ALLOWED_LABELS` | Finance, Receipts, Travel, … | Labels the agent may apply; must include the `labeling` skill's list |
+| `OWNER_FILE` | `owner.md` | Your profile, appended to every agent prompt (optional) |
+| `STATE_DB` | `state.db` | Run history and LangGraph checkpoints |
+| `GMAIL_CREDENTIALS_FILE` / `GMAIL_TOKEN_FILE` | `credentials.json` / `token.json` | Google OAuth files |
+| `LANGSMITH_*` | | Optional tracing (see Observability) |
+
+## Web UI
+
+`uv run gmail-agent ui` serves http://127.0.0.1:8000. Use `--port 8001` if 8000 is taken.
+
+- **Email list:** by default only inbox emails with real attachments are listed. Inline
+  logos don't count. Use `--all` for every email, and `--query` / `--max` for a different
+  Gmail search or count. Each email shows its status and a **Process** button.
+- **Input panel:** subject, Cc, attachments and the formatted body.
+  - PDFs and images open in a new tab; other file types download.
+  - Remote images are blocked until you click **Show remote images**, because they're
+    often tracking pixels.
+- **Result panels:** the extraction, the decision, any policy overrides, and per-agent
+  model, time, cost and tool/skill calls.
+- **Approvals:** drafts appear as an editable form with **Save as Gmail draft** /
+  **Reject**, and needs-human emails get a note box. Nothing waits on terminal input.
+- **Dry-run:** with `--dry-run`, a banner shows that Process won't change Gmail.
+
+The server listens on localhost only. Email HTML is rendered in a sandboxed frame with
+scripts disabled, and buttons only accept requests from the page itself.
 
 ## How the harness is organised
 
@@ -103,6 +164,14 @@ The `labeling` skill's `labels:` frontmatter must be a subset of `ALLOWED_LABELS
 
 - **Nothing is ever sent.** No agent has a send tool, and the Gmail client has no send
   method. Drafts are saved only after you approve them.
+- **Gmail permissions** requested at `auth`:
+  - `gmail.readonly`: read mail and attachments
+  - `gmail.compose`: create drafts. Google bundles sending into this scope, but the code
+    never sends.
+  - `gmail.modify`: add labels and archive
+
+  To narrow access, remove scopes in `gmail/auth.py`, delete `token.json` and run `auth`
+  again.
 - **Policy is enforced in code** (`policy.py`), whatever the model says:
   - below `MIN_CONFIDENCE` the email goes to you instead
   - labels outside `ALLOWED_LABELS` are dropped
@@ -136,6 +205,17 @@ uv run gmail-agent eval --backend claude_code --repeat 3 --case flight
 `eval` prints one line per run and a summary (accuracy, violations, fact recall, cost,
 latency). It writes a JSON report to `evals/results/` and exits non-zero on any violation
 or when accuracy falls below `--min-accuracy`. Run it after every prompt or skill change.
+
+## Development
+
+```bash
+uv run pytest              # offline unit tests: no network, no AI calls
+uv run gmail-agent check   # after editing any agent or skill file
+uv run gmail-agent eval    # after changing prompts, skills, models or policy
+```
+
+Tests use a fake Gmail service and a `FakeBackend` (`tests/conftest.py`) that returns
+preset agent outputs, so they're fast and free. Evals are the live check of agent quality.
 
 ## Observability
 
