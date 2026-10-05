@@ -17,7 +17,6 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, quote, urlparse
 
 from langgraph.checkpoint.sqlite import SqliteSaver
-from langgraph.types import Command
 
 from gmail_agent.gmail import GmailClient
 from gmail_agent.schemas import ActionKind, Attachment, Email, ExtractedEmail, NextAction
@@ -129,14 +128,15 @@ def load_inbox(client: GmailClient | None, query: str, max_results: int,
 
 
 class Runner:
-    """Runs the graph for one message at a time in a background thread.
-
-    Same steps as the CLI's `_process_one`: invoke, stop at an interrupt (the page shows
-    the approval form), resume with the reviewer's answer, record the id when finished.
+    """Runs the graph for one message at a time in a background thread, through the same
+    `run_message` the CLI uses: it records the result (done / waiting / failed) in the
+    store, and stops at an interrupt so the page can show the approval form.
     """
 
-    def __init__(self, graph, store: ProcessedStore):
+    def __init__(self, graph, store: ProcessedStore, dry_run: bool = False,
+                 backend_name: str | None = None):
         self.graph, self.store = graph, store
+        self.dry_run, self.backend_name = dry_run, backend_name
         self.lock = threading.Lock()  # one pipeline run at a time
         self.running: set[str] = set()
         self.errors: dict[str, str] = {}
@@ -149,20 +149,15 @@ class Runner:
         threading.Thread(target=self._run, args=(message_id, resume), daemon=True).start()
 
     def _run(self, message_id: str, resume) -> None:
-        config = {"configurable": {"thread_id": f"msg-{message_id}"}}
+        from gmail_agent.graph import run_message
+
+        kwargs = {"dry_run": self.dry_run} if resume is None else {"resume": resume}
         try:
             with self.lock:
-                if resume is None:
-                    self.graph.invoke({"message_id": message_id}, config=config)
-                else:
-                    self.graph.invoke(Command(resume=resume), config=config)
-                state = self.graph.get_state(config)
-                if not state.next:  # finished, not paused at an approval
-                    action = state.values.get("action")
-                    self.store.mark(message_id, action.kind.value if action else None,
-                                    action.model_dump(mode="json") if action else None)
-        except Exception as exc:
-            self.errors[message_id] = f"{exc.__class__.__name__}: {exc}"
+                result = run_message(self.graph, self.store, message_id,
+                                     backend_name=self.backend_name, **kwargs)
+            if result.status == "failed":
+                self.errors[message_id] = result.error or "failed"
         finally:
             self.running.discard(message_id)
 
@@ -289,13 +284,35 @@ def _action_html(run: dict, busy: bool) -> str:
         ("Confidence", f"{action.confidence:.2f}"), ("Labels", ", ".join(action.labels)),
         ("Due by", action.due_by), ("Reasoning", action.reasoning),
     ])
+    proposed: NextAction | None = run.get("proposed")
+    notes = run.get("policy_notes") or []
+    if notes:
+        if proposed and proposed.kind != action.kind:
+            out += f'<h3>Policy override</h3><p class="hint">Agent proposed {escape(proposed.kind.value)}</p>'
+        else:
+            out += "<h3>Policy</h3>"
+        out += "<ul>" + "".join(f"<li>{escape(n)}</li>" for n in notes) + "</ul>"
     if run["waiting"]:
-        return out + _approval_html(run, busy)
+        return out + _approval_html(run, busy) + _usage_html(run)
     if run.get("outcome"):
         out += f'<h3>Outcome</h3><span class="badge ok">{escape(run["outcome"])}</span>'
     if action.draft_reply:
         out += f"<h3>Draft reply</h3><pre>{escape(action.draft_reply)}</pre>"
-    return out
+    return out + _usage_html(run)
+
+
+def _usage_html(run: dict) -> str:
+    usage = run.get("usage") or {}
+    if not usage:
+        return ""
+    rows = ""
+    for name, u in usage.items():
+        cost = f" · ${u.cost_usd:.3f}" if u.cost_usd is not None else ""
+        tools = ", ".join(u.tool_calls) or "no tool calls"
+        rows += (f"<li><b>{escape(name)}</b> {escape(u.model)} · {u.duration_ms / 1000:.1f}s · "
+                 f"{u.input_tokens + u.output_tokens:,} tokens{escape(cost)}"
+                 f'<div class="hint">{escape(tools)}</div></li>')
+    return f'<h3>Run</h3><ul class="att">{rows}</ul>'
 
 
 def _process_button(message_id: str, busy: bool, label: str = "Process") -> str:
@@ -306,7 +323,7 @@ def _process_button(message_id: str, busy: bool, label: str = "Process") -> str:
 def _nav_item(r: dict, selected: bool, runner: Runner | None) -> str:
     email, action, mid = r.get("email"), r.get("action"), r["message_id"]
     running = runner is not None and mid in runner.running
-    failed = runner is not None and mid in runner.errors
+    failed = (runner is not None and mid in runner.errors) or bool(r.get("failed_error"))
     if running:
         kind, cls = "processing…", "warn"
     elif failed:
@@ -321,7 +338,7 @@ def _nav_item(r: dict, selected: bool, runner: Runner | None) -> str:
     if email is not None and _real_attachments(email):
         attach = ' <span class="badge">contains attachment</span>'
     button = ""
-    if runner is not None and not r.get("ts") and not running:
+    if runner is not None and (not r.get("ts") or failed) and not running:
         button = _process_button(mid, runner.lock.locked())
     return (
         f'<div class="row{" sel" if selected else ""}">'
@@ -337,8 +354,11 @@ def _results_html(run: dict, runner: Runner | None) -> str:
     running = runner is not None and mid in runner.running
     busy = runner is None or runner.lock.locked()
     error = ""
-    if runner is not None and mid in runner.errors:
-        error = f'<p class="error">Last run failed: {escape(runner.errors[mid])}</p>'
+    last_error = (runner.errors.get(mid) if runner is not None else None) or run.get("failed_error")
+    if last_error:
+        error = f'<p class="error">Last run failed: {escape(last_error)}</p>'
+        if runner is not None and run.get("ts") and mid not in runner.running:
+            error += f'<div class="actions">{_process_button(mid, busy, "Retry")}</div>'
     if running:
         return ('<section><h2>Result</h2><p>Processing… extraction and triage usually take '
                 "15–30 seconds. This page refreshes on its own.</p></section>")
@@ -366,6 +386,8 @@ def render_page(inbox: list[dict], runs: list[dict], selected_id: str | None,
     """`inbox`: live Gmail messages (merged with their run when processed).
     `runs`: processed messages that are no longer in the inbox list."""
     everything = inbox + runs
+    if runner is not None and runner.dry_run:
+        notice = "Dry-run: Process decides but does not change Gmail. " + notice
     notice_html = f'<p class="notice">{escape(notice)}</p>' if notice else ""
     if not everything:
         body = (f'<nav><h1>gmail-agent</h1>{notice_html}</nav><main><p class="empty">'
@@ -400,7 +422,7 @@ def render_page(inbox: list[dict], runs: list[dict], selected_id: str | None,
 def serve(saver: SqliteSaver, client: GmailClient | None = None, port: int = 8000,
           query: str = "in:inbox", max_results: int = 25,
           store: ProcessedStore | None = None, run_client: GmailClient | None = None,
-          attachments_only: bool = False) -> None:
+          attachments_only: bool = False, dry_run: bool = False) -> None:
     """`client` serves the page, `run_client` the pipeline runs. The Google API client is
     not thread-safe, so each gets its own connection and page requests share a lock."""
     cache: dict[str, Email] = {}
@@ -409,7 +431,10 @@ def serve(saver: SqliteSaver, client: GmailClient | None = None, port: int = 800
     if run_client is not None and store is not None:
         from gmail_agent.graph import build_graph
 
-        runner = Runner(build_graph(run_client, checkpointer=saver), store)
+        from gmail_agent.config import settings
+
+        runner = Runner(build_graph(run_client, checkpointer=saver), store, dry_run,
+                        settings.llm_backend)
     allowed_hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
 
     def _email(message_id: str) -> Email:
@@ -438,6 +463,12 @@ def serve(saver: SqliteSaver, client: GmailClient | None = None, port: int = 800
                 run["email"] = e  # the live copy has the HTML body and fresh labels
                 inbox.append(run)
             others = list(runs.values())
+            if store is not None:  # failures recorded by any process (CLI, poller, this UI)
+                rows = store.all()
+                for r in inbox + others:
+                    row = rows.get(r["message_id"])
+                    if row and row["status"] == "failed":
+                        r["failed_error"] = row["error"]
             if attachments_only:  # Gmail's has:attachment also matches inline-only images
                 inbox = [r for r in inbox if _real_attachments(r["email"])]
                 others = [r for r in others if r.get("email") and _real_attachments(r["email"])]

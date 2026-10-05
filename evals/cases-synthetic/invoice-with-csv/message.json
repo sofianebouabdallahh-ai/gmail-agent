@@ -1,0 +1,78 @@
+{
+  "id": "syn-invoice-0001",
+  "threadId": "syn-invoice-0001",
+  "labelIds": [
+    "UNREAD",
+    "INBOX"
+  ],
+  "snippet": "Hello,\n\nPlease find attached the line items for invoice #4521 for September.\nTotal due: EUR 1,250.00",
+  "payload": {
+    "partId": "",
+    "mimeType": "multipart/mixed",
+    "filename": "",
+    "headers": [
+      {
+        "name": "From",
+        "value": "Acme Billing <billing@acme.example>"
+      },
+      {
+        "name": "To",
+        "value": "owner@example.com"
+      },
+      {
+        "name": "Subject",
+        "value": "Invoice #4521 - due Oct 15"
+      },
+      {
+        "name": "Date",
+        "value": "Wed, 1 Oct 2026 09:12:00 +0200"
+      }
+    ],
+    "body": {
+      "size": 0
+    },
+    "parts": [
+      {
+        "partId": "0",
+        "mimeType": "multipart/alternative",
+        "filename": "",
+        "headers": [],
+        "body": {
+          "size": 0
+        },
+        "parts": [
+          {
+            "partId": "0.0",
+            "mimeType": "text/plain",
+            "filename": "",
+            "headers": [
+              {
+                "name": "Content-Type",
+                "value": "text/plain; charset=UTF-8"
+              }
+            ],
+            "body": {
+              "size": 143,
+              "data": "SGVsbG8sCgpQbGVhc2UgZmluZCBhdHRhY2hlZCB0aGUgbGluZSBpdGVtcyBmb3IgaW52b2ljZSAjNDUyMSBmb3IgU2VwdGVtYmVyLgpUb3RhbCBkdWU6IEVVUiAxLDI1MC4wMCBieSBPY3RvYmVyIDE1LCAyMDI2LgoKVGhhbmtzLApBY21lIEJpbGxpbmc"
+            }
+          }
+        ]
+      },
+      {
+        "partId": "1",
+        "mimeType": "text/csv",
+        "filename": "invoice-4521-lines.csv",
+        "headers": [
+          {
+            "name": "Content-Disposition",
+            "value": "attachment; filename=\"invoice-4521-lines.csv\""
+          }
+        ],
+        "body": {
+          "attachmentId": "SYN-ATT-INV-1",
+          "size": 123
+        }
+      }
+    ]
+  }
+}

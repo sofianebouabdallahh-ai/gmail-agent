@@ -9,10 +9,13 @@ wheels/
 # Virtual environments
 .venv
 
-# Secrets and local state
+# Secrets, personal data and local state
 credentials.json
 token.json
 .env
 *.db
 *.db-shm
 *.db-wal
+owner.md
+evals/cases/
+evals/results/
